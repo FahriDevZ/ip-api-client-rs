@@ -20,6 +20,8 @@
 //!     // or `exclude_currency` if this field is already included in
 //!     // the generated config
 //!     .include_currency()
+//!     // or `with_key` if you have subscribed to [members](https://members.ip-api.com)
+//!     .with_key("YOUR_API_KEY")
 //!     // available languages: de/en (default)/es/fr/ja/pt-Br/ru/zh-CN
 //!     .set_language(IpApiLanguage::De)
 //!     // `make_request` takes
@@ -303,6 +305,7 @@ pub struct IpApiConfig {
     is_hosting_included: bool,
     is_query_included: bool,
     language: IpApiLanguage,
+    key: Option<String>,
 }
 
 impl IpApiConfig {
@@ -311,9 +314,17 @@ impl IpApiConfig {
         target: Option<&str>,
         fields: u32,
         language: IpApiLanguage,
+        api_key: Option<&str>,
     ) -> String {
+        let free_domain = "ip-api.com";
+        let pro_domain = "pro.ip-api.com";
+        let endpoint = match api_key {
+            Some(key) => if key.is_empty() { free_domain } else { pro_domain },
+            None => free_domain,
+        };
         format!(
-            "http://ip-api.com/{}/{}?fields={}{}",
+            "http://{}/{}/{}?fields={}{}{}",
+            endpoint,
             resource,
             target.unwrap_or(""),
             fields,
@@ -326,7 +337,11 @@ impl IpApiConfig {
                 IpApiLanguage::PtBr => "&lang=pt-BR",
                 IpApiLanguage::Ru => "&lang=ru",
                 IpApiLanguage::ZhCn => "&lang=zh-CN",
-            }
+            },
+            match api_key {
+                Some(key) => format!("&key={}", key),
+                None => "".into(),
+            },
         )
     }
 
@@ -391,7 +406,7 @@ impl IpApiConfig {
     ///
     /// `target` can be "ip"/"domain"/"empty string (if you want to request your ip)"
     pub async fn make_request(self, target: &str) -> Result<IpData, IpApiError> {
-        let uri = Self::build_uri("json", Some(target), self.numeric_field, self.language);
+        let uri = Self::build_uri("json", Some(target), self.numeric_field, self.language, self.key.clone().as_deref());
 
         let client = Client::new();
         let Ok(uri) = uri.parse() else {
@@ -429,7 +444,7 @@ impl IpApiConfig {
     ///
     /// `target` can be "IPv4"/"IPv6"
     pub async fn make_batch_request(self, targets: Vec<&str>) -> Result<Vec<IpData>, IpApiError> {
-        let uri = Self::build_uri("batch", None, self.numeric_field, self.language);
+        let uri = Self::build_uri("batch", None, self.numeric_field, self.language, self.key.clone().as_deref());
 
         let Ok(request) = Request::builder()
             .method(Method::POST)
@@ -470,6 +485,13 @@ impl IpApiConfig {
         };
 
         Ok(ip_batch_data)
+    }
+
+    /// [pro.ip-api.com API](https://members.ip-api.com/docs/json)
+    pub fn with_key(mut self, key: &str) -> Self {
+        self.key = Some(key.into());
+
+        self
     }
 
     /// Include [`continent`](struct.IpData.html#structfield.continent) in request
@@ -968,6 +990,7 @@ pub fn generate_empty_config() -> IpApiConfig {
         is_hosting_included: false,
         is_query_included: false,
         language: IpApiLanguage::En,
+        key: None,
     }
 }
 
@@ -999,6 +1022,7 @@ pub fn generate_minimum_config() -> IpApiConfig {
         is_hosting_included: false,
         is_query_included: false,
         language: IpApiLanguage::En,
+        key: None,
     }
 }
 
@@ -1030,5 +1054,6 @@ pub fn generate_maximum_config() -> IpApiConfig {
         is_hosting_included: true,
         is_query_included: true,
         language: IpApiLanguage::En,
+        key: None,
     }
 }

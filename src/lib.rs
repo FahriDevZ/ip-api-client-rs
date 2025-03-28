@@ -420,7 +420,10 @@ impl IpApiConfig {
             )));
         };
 
-        Self::check_response(response)?;
+        let has_key = self.key.is_some() && !self.key.as_ref().unwrap().is_empty();
+        if !has_key {
+            Self::check_response(response)?;
+        }
 
         let body = Self::parse_response_body(response).await?;
         let Ok(ip_data): Result<IpApiMessage, _> = serde_json::from_str(body.as_str()) else {
